@@ -1,183 +1,56 @@
 classdef neuroGLM < handle
     
     properties
-        expt
         covar
         idxmap
         dm
         edim
+        binfun
+        binSize
+        param
     end
     
     methods
-        function obj=neuroGLM()
-            obj.expt  =struct();
+        function obj=neuroGLM(varargin)
             obj.covar = struct();
             obj.idxmap = struct(); % reverse positional indexing
+            
+            if nargin > 0
+                obj.initExperiment(varargin{:})
+            end
         end
         
         %% initialize Experiment
-        function initExperiment(obj, unitOfTime, binSize, uniqueID, param)
+        function initExperiment(obj, unitOfTime, binSize, param)
             % Initialize the Experiment structure that holds raw data
-            % expt = initExperiment(unitOfTime, binSize, uniqueID)
+            % expt = initExperiment(unitOfTime, binSize, param)
             %
             %   unitOfTime: 'string' - 's' or 'ms' indicating a global unit of time
             %   binSize: [1] - duration of each time bin in units of unitOfTime
-            %   uniqueID: 'string' optional - Unique identifier for this experiment
-            %       a compact string for easy future reference
             %   param: (any) optional - any potentially useful extra information
             %       associated with the entire experiment record (experimental
             %       parameters)
+            if nargin <=1
+                help initExperiment
+                return
+            end
             
             assert(binSize > 0);
             assert(ischar(unitOfTime), 'Put a string for unit');
             
-            obj.expt = struct('unitOfTime', unitOfTime, 'binSize', binSize);
-            obj.expt.binfun = @(t) (t == 0) + ceil(t/obj.expt.binSize);
-            obj.expt.type = struct();
-            obj.expt.desc = struct();
-            obj.expt.dim = struct();
-            
-            if nargin > 3 && ~isempty(uniqueID)
-                obj.expt.id = uniqueID;
-            else
-                [ret, hostname] = system('hostname');
-                
-                if ret ~= 0
-                    if ispc
-                        hostname = getenv('COMPUTERNAME');
-                    else
-                        hostname = getenv('HOSTNAME');
-                    end
-                end
-                hostname = strtrim(lower(hostname));
-                
-                obj.expt.id = [datestr(now, 30) '@' hostname];
-            end
+            obj.binfun   = @(t) (t == 0) + ceil(t/obj.binSize);
+            obj.binSize  = binSize;
             
             if nargin > 3
-                obj.expt.param = param;
+                obj.param = param;
             else
-                obj.expt.param = struct();
+                obj.param = struct();
             end
             
-        end
-                
-        %% register continuous variable
-        function registerContinuous(obj,label, vardesc, dim)
-            % Indicate that the experiment has a continuous observation
-            % expt = registerContinuous(expt, varname, vardesc, dim)
-            %
-            %   label: 'string' - label for the observed variable
-            %   vardesc: 'string' - longer description of the variable
-            %   dim: [1] optional/1 - dimensionality of the observd variable
-            
-            if isempty(obj.expt)
-                error('First argument must be a structure created from buildGLM.initExperiment');
-            end
-            
-            if isfield(obj.expt.type, label) || isfield(obj.expt.desc, label)
-                error('[%s] already registered in this experiment structure');
-            end
-            
-            if nargin < 4
-                dim = 1;
-            end
-            
-            assert(rem(dim,1) == 0);
-            
-            obj.expt.desc.(label) = vardesc;
-            obj.expt.type.(label) = 'continuous';
-            obj.expt.dim.(label) = dim;
-        end
-        
-        %% register spike train
-        function registerSpikeTrain(obj, label, vardesc)
-            % Indicate that the experiment has a spike train observation
-            % expt = registerSpikeTrain(expt, label, vardesc)
-            %
-            % Spike trains are treated differently for visualization, and goodness-of-fit
-            % evaluations.
-            %
-            %   label: 'string' - label for the spike train
-            %   vardesc: 'string' - longer description of where the spike train
-            %	originates from
-            
-            if ~isstruct(obj.expt)
-                error('First argument must be a structure created from buildGLM.initExperiment');
-            end
-            
-            if isfield(obj.expt.type, label) || isfield(obj.expt.desc, label)
-                error('[%s] already registered in this experiment structure');
-            end
-            
-            obj.expt.desc.(label) = vardesc;
-            obj.expt.type.(label) = 'spike train';
+            obj.param.timeunit = unitOfTime;
             
         end
         
-        %% register timing
-        function registerTiming(obj, label, vardesc)
-            % Indicate that the experiment has an event type observation
-            % expt = registerTiming(expt, label, vardesc)
-            %
-            % Events can happen 0 or more times within a single trial and efficiently
-            % represented by a sparse vector.
-            %
-            %   label: 'string' - label for the observed variable
-            %   vardesc: 'string' - longer description of the variable
-            
-            if isempty(obj.expt)
-                error('First argument must be a structure created from buildGLM.initExperiment');
-            end
-            
-            if isfield(obj.expt.type, label) || isfield(obj.expt.desc, label)
-                error('[%s] already registered in this experiment structure');
-            end
-            
-            obj.expt.desc.(label) = vardesc;
-            obj.expt.type.(label) = 'timing';
-            
-        end
-        
-        %% register value
-        function registerValue(obj, label, vardesc, associatedTiming)
-            % Indicate that the experiment has a value associated  observation
-            % expt = registerValue(expt, label, vardesc)
-            %
-            % A non-timing value
-            %
-            %   label: 'string' - label for the spike train
-            %   vardesc: 'string' - longer description of where the spike train
-            %   associatedTiming: 'string' optional - label of the timing variable
-            %	associated with this value variable if there is one.
-            
-            if isempty(obj.expt)
-                error('First argument must be a structure created from buildGLM.initExperiment');
-            end
-            
-            if isfield(obj.expt.type, label) || isfield(obj.expt.desc, label)
-                error('[%s] already registered in this experiment structure');
-            end
-            
-            obj.expt.desc.(label) = vardesc;
-            obj.expt.type.(label) = 'value';
-            
-            if nargin > 3
-                if ~isfield(obj.expt.meta.type, associatedTiming)
-                    error('Please register the associated timing variable first');
-                end
-                
-                if ~strcmp(obj.expt.meta.type.(associatedTiming), 'timing')
-                    error('The associated variable must be of timing-type');
-                end
-                
-                obj.expt.valueMap.(associatedTiming) = label;
-                obj.expt.valueTimingMap.(label) = associatedTiming;
-            else
-                obj.expt.valueTimingMap.(label) = [];
-            end
-            
-        end
         
         %% remove constant columns
         function removeConstantCols(obj)
@@ -237,7 +110,15 @@ classdef neuroGLM < handle
             
         end
         %% add Covariate with specified requirements
-        function addCovariate(obj, trial, covLabel, desc, stimHandle, basisStruct, offset, cond, plotOpts)
+        function addCovariate(obj, trial, covLabel, desc, stimHandle, basisObj, offset, cond, plotOpts)
+            % add covariate helper function
+            % addCovariate(obj, trial, covLabel, desc, stimHandle, basisStruct, offset, cond, plotOpts)
+            %
+            % see also: addCovariateRaw, addCovariateSpikeTrain, addCovariateBoxcar, addCovariateTiming
+            if nargin <= 1
+                help addCovariate
+                return
+            end
             
             if ~ischar(covLabel)
                 error('Covariate label must be a string');
@@ -247,32 +128,36 @@ classdef neuroGLM < handle
             if nargin < 5; stimHandle = []; end
             
             if isfield(obj.idxmap, covLabel)
-                error('Label already added as a covariate');
+                warning('Label already added as a covariate');
+                return
             end
             
             newIdx = numel(fieldnames(obj.idxmap)) + 1;
             
-            obj.covar(newIdx).label = covLabel;
-            obj.covar(newIdx).desc = desc;
-            obj.covar(newIdx).stim = stimHandle;
+            if newIdx==1
+                obj.covar=Covar(covLabel, desc, stimHandle);
+            else
+                obj.covar(newIdx)=Covar(covLabel, desc, stimHandle);
+            end
+            
             obj.idxmap.(covLabel) = newIdx;
             
-            sdim = size(stimHandle(trial(1), obj.expt), 2);
+            sdim = size(stimHandle(trial(1)), 2);
             obj.covar(newIdx).sdim = sdim;
             
             if nargin >= 6
-                if isstruct(basisStruct)
-                    obj.covar(newIdx).basis = basisStruct;
-                    obj.covar(newIdx).edim = basisStruct.edim * sdim;
+                if isa(basisObj, 'Basis')
+                    obj.covar(newIdx).basis = basisObj;
+                    obj.covar(newIdx).edim  = basisObj.edim * sdim;
                 else
-                    error('Basis structure should be a structure (use [] to have no basis)');
+                    error('Basis structure should be a basisObject');
                 end
             else
                 obj.covar(newIdx).edim = sdim;
             end
             
             if nargin >= 7
-                obj.covar(newIdx).offset = obj.expt.binfun(offset);
+                obj.covar(newIdx).offset = obj.binfun(offset);
             else
                 obj.covar(newIdx).offset = 0;
             end
@@ -295,13 +180,15 @@ classdef neuroGLM < handle
         
         %% add Boxcar covariate
         function addCovariateBoxcar(obj, trial, covLabel, startLabel, endLabel, desc, varargin)
-            
+            % add boxcar covariate to model
+            % addCovariateBoxcar(obj, trial, covLabel, startLabel, endLabel, desc, varargin)
+            %
+            % see also: addCovariateRaw, addCovariateSpikeTrain, addCovariate, addCovariateTiming
             if nargin < 5; desc = covLabel; end
             
             assert(ischar(desc), 'Description must be a string');
             
-            binfun = obj.expt.binfun;
-            stimHandle = @(trial, nT) basisFactory.boxcarStim(binfun(trial.(startLabel)), binfun(trial.(endLabel)), binfun(trial.duration));
+            stimHandle = @(trial) basisFactory.boxcarStim(obj.binfun(trial.(startLabel)), obj.binfun(trial.(endLabel)), obj.binfun(trial.duration));
             
             obj.addCovariate(trial, covLabel, desc, stimHandle, varargin{:});
         end
@@ -319,19 +206,25 @@ classdef neuroGLM < handle
         end
         
         %% add Spike train covariate
-        function addCovariateSpiketrain(obj, trial, covLabel, stimLabel, desc, basisStruct, varargin)
+        function addCovariateSpiketrain(obj, trial, covLabel, stimLabel, desc, bs, varargin)
             % add spike train as covariate
+            % addCovariateSpiketrain(trial, covLabel, stimLabel, desc, basisStruct, varargin)
             
-            if nargin < 4; desc = covLabel; end
+            if nargin<=1
+                help addCovariateSpiketrain
+                return
+            end
             
-            if nargin < 5
-                basisStruct = basisFactory.makeNonlinearRaisedCos(10, obj.expt.binSize, [0 100], 2);
+            if nargin < 5; desc = covLabel; end
+            
+            if nargin < 6
+                bs = basisFactory.basisFactory('history', obj.binfun);
             end
             
             assert(ischar(desc), 'Description must be a string');
             
             offset = 1; % Make sure to be causal. No instantaneous interaction allowed.
-            binfun = obj.expt.binfun;
+            
             if numel(varargin) > 0 && isa(varargin{1}, 'function_handle')
                 stimHandle = varargin{1};
                 options={};
@@ -339,11 +232,12 @@ classdef neuroGLM < handle
                     options=varargin(2:end);
                 end
             else
-                stimHandle = @(trial, expt) basisFactory.deltaStim(binfun(trial.(stimLabel)+expt.binSize), binfun(trial.duration));
+                stimHandle = @(trial) basisFactory.deltaStim(obj.binfun(trial.(stimLabel)), obj.binfun(trial.duration));
+%                 stimHandle = @(trial) basisFactory.deltaStim(obj.binfun(trial.(stimLabel)+obj.binSize), obj.binfun(trial.duration));
                 options = varargin;
             end
             
-            obj.addCovariate(trial, covLabel, desc, stimHandle, basisStruct, offset, options{:});
+            obj.addCovariate(trial, covLabel, desc, stimHandle, bs, offset, options{:});
         end
         
         %% add Timing Covariate
@@ -351,37 +245,23 @@ classdef neuroGLM < handle
             % Add a timing covariate based on the stimLabel.
             % addCovariateTiming(covLabel, stimLabel, desc, basisStruct, offset, cond, plotOpts);
             
-            if nargin < 3; stimLabel = covLabel; end
-            if nargin < 4; desc = covLabel; end
+            if nargin < 4; stimLabel = covLabel; end
+            if nargin < 5; desc = covLabel; end
             
             if isempty(stimLabel)
                 stimLabel = covLabel;
             end
             
-            % Check that the stimLabel corresponds to a timing variable
-            if isempty(obj.expt)
-                error('Must initialize experiment first');
+            if isempty(desc)
+                desc=stimLabel;
             end
-            
-            
-            if ~isfield(obj.expt.type, stimLabel)
-                error('Label [%s] is not registered in experiment structure', stimLabel);
-            end
-            
-            % Check that the stimLabel corresponds to a continuous variable
-            if ~strcmp(obj.expt.type.(stimLabel), 'timing')
-                error('Type of label [%s] is not timing', stimLabel);
-            else
-                assert(isfield(trial, stimLabel));
-            end
-            
-            binfun = obj.expt.binfun;
-            stimHandle = @(trial, expt) basisFactory.deltaStim(binfun(trial.(stimLabel)), binfun(trial.duration(1)));
+                        
+            stimHandle = @(trial) basisFactory.deltaStim(obj.binfun(trial.(stimLabel)), obj.binfun(trial.duration(1)));
             
             obj.addCovariate(trial, covLabel, desc, stimHandle, varargin{:});
             
         end
-
+        
         %% combine fitted weights
         function [wout] = combineWeights(obj, w)
             % Combine the weights per column in the design matrix per covariate
@@ -394,10 +274,10 @@ classdef neuroGLM < handle
             %   wout.(label).data = combined weights
             %   wout.(label).tr = time axis
             
-            binSize = obj.expt.binSize;
+            obj.binSize;
             wout = struct();
             
-            if isfield(obj.obj.dm, 'biasCol') % undo z-score operation
+            if isfield(obj.dm, 'biasCol') % undo z-score operation
                 if isfield(obj.dm, 'zscore') && numel(obj.dm.zscore.mu) == numel(w) % remove bias from zscore
                     zmu  = obj.dm.zscore.sigma(obj.dm.biasCol);
                     zsig = obj.dm.zscore.mu(obj.dm.biasCol);
@@ -416,44 +296,44 @@ classdef neuroGLM < handle
             end
             
             if isfield(obj.dm, 'constCols') % put back the constant columns
-                w2 = zeros(obj.dspec.edim, 1);
+                w2 = zeros(obj.edim, 1);
                 w2(~obj.dm.constCols) = w; % first term is bias
                 w = w2;
             end
             
-            if numel(w) ~= obj.dspec.edim
+            if numel(w) ~= obj.edim
                 error('Expecting w to be %d dimension but it''s [%d]', ...
-                    obj.dspec.edim, numel(w));
+                    obj.edim, numel(w));
             end
             
             startIdx = [1 (cumsum([obj.covar(:).edim]) + 1)];
             
             for kCov = 1:numel(obj.covar)
-                basis = obj.covar(kCov).basis;
+                bs = obj.covar(kCov).basis;
                 
-                if isempty(basis)
+                if isempty(bs)
                     w_sub = w(startIdx(kCov) + (1:obj.covar(kCov).edim) - 1);
-                    wout.(obj.covar(kCov).label).tr = ((1:size(w_sub, 1))-1 + obj.covar(kCov).offset) * binSize;
+                    wout.(obj.covar(kCov).label).tr = ((1:size(w_sub, 1))-1 + obj.covar(kCov).offset) * obj.binSize;
                     wout.(obj.covar(kCov).label).data = w_sub;
                     continue;
                 end
                 
-                assert(isstruct(basis), 'Basis structure is not a structure?');
+                assert(isa(bs, 'Basis'), 'Basis is not a Basis?');
                 
-                sdim = obj.covar(kCov).edim / basis.edim;
-                wout.(obj.covar(kCov).label).data = zeros(size(basis.B, 1), sdim);
+                sdim = obj.covar(kCov).edim / bs.edim;
+                wout.(obj.covar(kCov).label).data = zeros(size(bs.B, 1), sdim);
                 for sIdx = 1:sdim
-                    w_sub = w(startIdx(kCov) + (1:basis.edim)-1 + basis.edim * (sIdx - 1));
-                    w2_sub = sum(bsxfun(@times, basis.B, w_sub(:)'), 2);
+                    w_sub = w(startIdx(kCov) + (1:bs.edim)-1 + bs.edim * (sIdx - 1));
+                    w2_sub = sum(bsxfun(@times, bs.B, w_sub(:)'), 2);
                     wout.(obj.covar(kCov).label).data(:, sIdx) = w2_sub;
                 end
                 wout.(obj.covar(kCov).label).tr = ...
-                    ((basis.tr(:, 1) + obj.covar(kCov).offset) * binSize) * ones(1, sdim);
+                    ((bs.tr(:, 1) + obj.covar(kCov).offset) * obj.binSize) * ones(1, sdim);
             end
             
         end
         
-        %% Add Bias Column to design matrix         
+        %% Add Bias Column to design matrix
         function addBiasColumn(obj,flag)
             % Add a column of ones as the first (or last) column to estimate the bias
             % (DC term)
@@ -487,16 +367,16 @@ classdef neuroGLM < handle
             
         end
         
-        %% Compile Design Matrix        
+        %% Compile Design Matrix
         function compileDesignMatrix(obj, trial, trialIndices)
             % Compile information from experiment according to given DesignSpec
-            if ~isempty(obj.dm) && all(trialIndices==obj.dm.trialIndices)
+            if ~isempty(obj.dm) && (numel(trialIndices)==numel(obj.dm.trialIndices)) && all(sum(bsxfun(@eq, trialIndices(:),obj.dm.trialIndices),2))
                 return
             end
-            
+            obj.dm=struct();
             subIdxs = obj.getGroupIndicesFromDesignSpec;
             
-            trialT = ceil([trial(trialIndices).duration]/obj.expt.binSize);
+            trialT = ceil([trial(trialIndices).duration]/obj.binSize);
             totalT = sum(trialT);
             X      = zeros(totalT, obj.edim);
             
@@ -512,11 +392,12 @@ classdef neuroGLM < handle
                         continue;
                     end
                     
-                    stim = obj.covar(kCov).stim(trial(kTrial), obj.expt); % either dense or sparse
+                    stim = obj.covar(kCov).stim(trial(kTrial)); % either dense or sparse
                     stim = full(stim);
                     
-                    if isfield(obj.covar(kCov), 'basis') && ~isempty(obj.covar(kCov).basis)
-                        X(ndx, sidx) = basisFactory.convBasis(stim, obj.covar(kCov).basis, obj.covar(kCov).offset);
+                    if ~isempty(obj.covar(kCov).basis)
+                        X(ndx, sidx) = obj.covar(kCov).basis.convolve(stim, obj.covar(kCov).offset);
+%                         X(ndx, sidx) = basisFactory.convBasis(stim, obj.covar(kCov).basis, obj.covar(kCov).offset);
                     else
                         X(ndx, sidx) = stim;
                     end
@@ -538,13 +419,12 @@ classdef neuroGLM < handle
             % y: a sparse column vector representing the concatenated spike trains
             
             sts = cell(numel(trialIdx), 1);
-            binfun = obj.expt.binfun;
-            endTrialIndices = [0 cumsum(binfun([trial(trialIdx).duration])) + 1];
+            endTrialIndices = [0 cumsum(obj.binfun([trial(trialIdx).duration])) + 1];
             nT = endTrialIndices(end) - 1; % how many bins total?
             
             for k = 1:numel(trialIdx)
                 kTrial = trialIdx(k);
-                bst = endTrialIndices(k) + binfun(trial(kTrial).(spLabel));
+                bst = endTrialIndices(k) + obj.binfun(trial(kTrial).(spLabel));
                 sts{k} = bst(:);
             end
             
@@ -586,9 +466,9 @@ classdef neuroGLM < handle
             k = 0;
             
             for kCov = 1:numel(obj.covar)
-                edim = obj.covar(kCov).edim;
-                subIdxs{kCov} = k + (1:edim); %#ok<AGROW>
-                k = k + edim;
+                ddim = obj.covar(kCov).edim;
+                subIdxs{kCov} = k + (1:ddim); %#ok<AGROW>
+                k = k + ddim;
             end
             
         end
