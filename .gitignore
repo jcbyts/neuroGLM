@@ -1,3 +1,5 @@
 tutorial.html
 *.mat
 exampleData.mat
+.DS_Store
+*.DS_Store
