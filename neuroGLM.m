@@ -38,8 +38,9 @@ classdef neuroGLM < handle
             assert(binSize > 0);
             assert(ischar(unitOfTime), 'Put a string for unit');
             
-            obj.binfun   = @(t) (t == 0) + ceil(t/obj.binSize);
             obj.binSize  = binSize;
+            obj.binfun   = @(t) (t == 0) + ceil(t/obj.binSize);
+            
             
             if nargin > 3
                 obj.param = param;
@@ -183,6 +184,8 @@ classdef neuroGLM < handle
             % add boxcar covariate to model
             % addCovariateBoxcar(obj, trial, covLabel, startLabel, endLabel, desc, varargin)
             %
+            % varargin: offset, cond, plotOpts
+            %
             % see also: addCovariateRaw, addCovariateSpikeTrain, addCovariate, addCovariateTiming
             if nargin < 5; desc = covLabel; end
             
@@ -196,6 +199,9 @@ classdef neuroGLM < handle
         %% add raw continuous covariate (no basis)
         function addCovariateRaw(obj, trial, covLabel, desc, varargin)
             % Add the continuous covariate without basis function (instantaneous rel)
+            %
+            % varargin: offset, cond, plotOpts
+            %
             
             if nargin < 3; desc = covLabel; end
             
@@ -208,6 +214,9 @@ classdef neuroGLM < handle
         %% add Spike train covariate
         function addCovariateSpiketrain(obj, trial, covLabel, stimLabel, desc, bs, varargin)
             % add spike train as covariate
+            %
+            % varargin: offset, cond, plotOpts
+            %
             % addCovariateSpiketrain(trial, covLabel, stimLabel, desc, basisStruct, varargin)
             
             if nargin<=1
@@ -243,7 +252,10 @@ classdef neuroGLM < handle
         %% add Timing Covariate
         function addCovariateTiming(obj, trial, covLabel, stimLabel, desc, varargin)
             % Add a timing covariate based on the stimLabel.
-            % addCovariateTiming(covLabel, stimLabel, desc, basisStruct, offset, cond, plotOpts);
+            %
+            % varargin: offset, cond, plotOpts
+            %
+            % addCovariateTiming(trial, covLabel, stimLabel, desc, varargin)
             
             if nargin < 4; stimLabel = covLabel; end
             if nargin < 5; desc = covLabel; end
@@ -265,6 +277,7 @@ classdef neuroGLM < handle
         %% combine fitted weights
         function [wout] = combineWeights(obj, w)
             % Combine the weights per column in the design matrix per covariate
+            % [wout] = combineWeights(weightVector)
             %
             % Input
             %   dm: design matrix structure
@@ -388,7 +401,7 @@ classdef neuroGLM < handle
                     
                     sidx = subIdxs{kCov};
                     
-                    if isfield(obj.covar(kCov), 'cond') && ~isempty(obj.covar(kCov).cond) && ~obj.covar(kCov).cond(trial(kTrial))
+                    if ~isempty(obj.covar(kCov).cond) && ~obj.covar(kCov).cond(trial(kTrial))
                         continue;
                     end
                     
@@ -417,6 +430,7 @@ classdef neuroGLM < handle
         %% get binned spike train
         function y = getBinnedSpikeTrain(obj, trial, spLabel, trialIdx)
             % y: a sparse column vector representing the concatenated spike trains
+%             getBinnedSpikeTrain(obj, trial, spLabel, trialIdx)
             
             sts = cell(numel(trialIdx), 1);
             endTrialIndices = [0 cumsum(obj.binfun([trial(trialIdx).duration])) + 1];

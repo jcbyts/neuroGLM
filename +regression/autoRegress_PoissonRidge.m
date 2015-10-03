@@ -22,7 +22,7 @@ function [wRidge,rho,SDebars,postHess,logevid] = autoRegress_PoissonRidge(xx,yy,
 %
 % $Id$
 
-
+import regression.*
 
 % initialize filter estimate with MAP regression estimate, if necessary
 if nargin == 6
