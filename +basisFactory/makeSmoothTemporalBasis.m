@@ -18,7 +18,7 @@ switch shape
         nlin = @(x)(log(x + 1e-20));
         invnl = @(x)(exp(x) - 1e-20);
         
-        if nlOffset <= 0
+        if nlOffset < 0
             error('nlOffset must be greater than 0');
         end
         if numel(duration)==2
@@ -31,7 +31,7 @@ switch shape
         ctrs = yrnge(1):db:yrnge(2); % centers for basis vectors
         mxt = invnl(yrnge(2)+2*db) - nlOffset; % maximum time bin
         iht = (0:binSize:mxt)';
-        ttb=repmat(iht, 1, nBases);
+        ttb=repmat(iht/binSize, 1, nBases)+1;
         ff = @(x,c,dc) (cos(max(-pi, min(pi, (x-c)*pi/dc/2))) + 1)/2;
         BBstm = ff(repmat(nlin(iht + nlOffset), 1, nBases), repmat(ctrs, numel(iht), 1), db);
         bcenters = invnl(ctrs);

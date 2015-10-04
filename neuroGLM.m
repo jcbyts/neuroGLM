@@ -232,7 +232,7 @@ classdef neuroGLM < handle
             
             assert(ischar(desc), 'Description must be a string');
             
-            offset = 1; % Make sure to be causal. No instantaneous interaction allowed.
+            offset = obj.binSize; % Make sure to be causal. No instantaneous interaction allowed.
             
             if numel(varargin) > 0 && isa(varargin{1}, 'function_handle')
                 stimHandle = varargin{1};
@@ -373,7 +373,7 @@ classdef neuroGLM < handle
                     obj.dm.X = [ones(size(obj.dm.X, 1), 1), obj.dm.X];
                     obj.dm.biasCol = 1; % indicating that the first column is the bias column
                 case 'right'
-                    n = obj.dm.dspec.edim+1;
+                    n = obj.edim+1;
                     obj.dm.X = [obj.dm.X, ones(size(obj.dm.X, 1), 1)];
                     obj.dm.biasCol = n; % indicating that the last column is the bias column
             end
@@ -386,16 +386,18 @@ classdef neuroGLM < handle
             if ~isempty(obj.dm) && (numel(trialIndices)==numel(obj.dm.trialIndices)) && all(sum(bsxfun(@eq, trialIndices(:),obj.dm.trialIndices),2))
                 return
             end
+            
+            fprintf('building the design matrix\n')
             obj.dm=struct();
             subIdxs = obj.getGroupIndicesFromDesignSpec;
             
-            trialT = ceil([trial(trialIndices).duration]/obj.binSize);
+            trialT = obj.binfun([trial(trialIndices).duration]);
             totalT = sum(trialT);
             X      = zeros(totalT, obj.edim);
             
             for k = 1:numel(trialIndices)
                 kTrial = trialIndices(k);
-                ndx = sum(trialT(1:k))-(trialT(k)-1):sum(trialT(1:k));
+                ndx = (sum(trialT(1:k))-(trialT(k)-1)):sum(trialT(1:k));
                 
                 for kCov = 1:numel(obj.covar) % for each covariate
                     
@@ -433,8 +435,8 @@ classdef neuroGLM < handle
 %             getBinnedSpikeTrain(obj, trial, spLabel, trialIdx)
             
             sts = cell(numel(trialIdx), 1);
-            endTrialIndices = [0 cumsum(obj.binfun([trial(trialIdx).duration])) + 1];
-            nT = endTrialIndices(end) - 1; % how many bins total?
+            endTrialIndices = [0 cumsum(obj.binfun([trial(trialIdx).duration]))];
+            nT = endTrialIndices(end); % how many bins total?
             
             for k = 1:numel(trialIdx)
                 kTrial = trialIdx(k);
@@ -514,7 +516,32 @@ classdef neuroGLM < handle
             y = cell2mat(ycell);
         end
         
-        
+        %% get covariate timing
+        function X = getCovariateTiming(obj, trial, trialIndices)
+            % Compile information from experiment according to given DesignSpec
+            % X = getCovariateTiming(trial,trialIndices)
+            
+            trialT = ceil([trial(trialIndices).duration]/obj.binSize);
+            totalT = sum(trialT);
+            
+            nCovariates = numel(obj.covar);
+            
+            X      = zeros(totalT, nCovariates);
+            
+            for k = 1:numel(trialIndices)
+                kTrial = trialIndices(k);
+                ndx = sum(trialT(1:k))-(trialT(k)-1):sum(trialT(1:k));
+                
+                for kCov = 1:nCovariates
+                    if ~isempty(obj.covar(kCov).cond) && ~obj.covar(kCov).cond(trial(kTrial))
+                        continue;
+                    end
+                    
+                    stim = obj.covar(kCov).stim(trial(kTrial)); % either dense or sparse
+                    X(ndx, kCov) = full(stim);
+                end
+            end
+        end
         
         
     end
