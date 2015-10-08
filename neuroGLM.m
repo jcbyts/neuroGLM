@@ -383,7 +383,9 @@ classdef neuroGLM < handle
         %% Compile Design Matrix
         function compileDesignMatrix(obj, trial, trialIndices)
             % Compile information from experiment according to given DesignSpec
-            if ~isempty(obj.dm) && (numel(trialIndices)==numel(obj.dm.trialIndices)) && all(sum(bsxfun(@eq, trialIndices(:),obj.dm.trialIndices),2))
+            if isempty(obj.dm) || ~isfield(obj.dm, 'X') || isempty(obj.dm.X)
+                
+            elseif ~isempty(obj.dm) && (numel(trialIndices)==numel(obj.dm.trialIndices)) && all(sum(bsxfun(@eq, trialIndices(:),obj.dm.trialIndices),2))
                 return
             end
             
@@ -428,6 +430,7 @@ classdef neuroGLM < handle
             end
             
         end
+        
         
         %% get binned spike train
         function y = getBinnedSpikeTrain(obj, trial, spLabel, trialIdx)
@@ -542,6 +545,8 @@ classdef neuroGLM < handle
                 end
             end
         end
+        
+        %% save 
         
         
     end
