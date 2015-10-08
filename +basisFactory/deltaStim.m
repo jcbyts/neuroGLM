@@ -9,4 +9,11 @@ end
 
 assert(numel(o) == numel(v));
 
+if any(bt>nT)
+    badix=bt>nT;
+%     fprintf('%d events of %d are thrown out because they exceed the trial duration\n',sum(badix), numel(badix))
+    bt(badix)=[];
+    o(badix)=[];
+    v(badix)=[];
+end
 stim = sparse(bt, o, v, nT, 1);
