@@ -1,5 +1,5 @@
-function [w_hat,SDebars, wt,wx,wlin] = bilinearMixRegress_Poisson(X,Y,wDims,p,indsbilin,nlfun, dtbin, opts)
-% [w_hat,SDebars, wt,wx,wlin] = bilinearMixRegress_Poisson(xx,xy,wDims,p,indsbilin,nlfun, dtbin, opts)
+function [w_hat,SDebars, wt,wx,wlin,fval] = bilinearMixRegress_Poisson(X,Y,wDims,p,indsbilin,nlfun, dtbin, opts, w0)
+% [w_hat,SDebars, wt,wx,wlin,fval] = bilinearMixRegress_Poisson(xx,xy,wDims,p,indsbilin,nlfun, dtbin, opts)
 % or 
 % [w_hat,SDebars, wt,wx,wlin] = bilinearMixRegress_Poisson(xx,xy,wDims,p,indsbilin,mstruct, opts)
 % 
@@ -31,8 +31,12 @@ function [w_hat,SDebars, wt,wx,wlin] = bilinearMixRegress_Poisson(X,Y,wDims,p,in
 %   wlin = linearly parametrized portion
 %   wt = column vectors (bilinear portion)
 %   wx = row vectors (bilinear portion)
+%   fval=likelihood value at end
 %
 % $Id$
+
+import regression.*
+
 if ~exist('dtbin', 'var')
     dtbin = 1;
 end
@@ -88,7 +92,9 @@ iilin = nbi+1:nw; % new linear indices (last ones)
 xx = X'*X;
 xy = X'*Y;
 % Initialize estimate of w by linear regression and SVD
-w0 = xx\xy;
+if ~exist('w0', 'var')
+    w0 = (xx+eye(size(xx)))\xy;
+end
 wlin = w0(iilin);
 [wt,s,wx] = svd(reshape(w0(iibi),nt,nx));
 wt = wt(:,1:p)*sqrt(s(1:p,1:p));
@@ -113,7 +119,8 @@ while (iter <= opts.MaxIter) && (fchange > opts.TolFun)
     % Update temporal components
     Mx = blkdiag(kron(wx',It),Ilin);
     Xproj = X*Mx;
-    w0 = (Mx'*xx*Mx)\(Mx'*xy);
+    C=Mx'*xx*Mx;
+    w0 = (C+eye(size(C)))\(Mx'*xy);
     lfun = @(w) postfun(w, Xproj, Y);
 %     lfun = @(w) neglogli_poiss(w, Xproj, Y, g, dtbin);
     wt = fminunc(lfun, w0, optimOpts);
@@ -122,7 +129,8 @@ while (iter <= opts.MaxIter) && (fchange > opts.TolFun)
     
     % Update spatial components
     Mt = blkdiag(kron(Ix, wt),Ilin);
-    wx0 = (Mt'*xx*Mt)\(Mt'*xy);
+    C=Mt'*xx*Mt;
+    wx0 = (C+eye(size(C)))\(Mt'*xy);
     Xproj = X*Mt;
     lfun = @(w) postfun(w, Xproj, Y);
 %     lfun = @(w) neglogli_poiss(w, Xproj, Y, g, dtbin);
@@ -142,7 +150,7 @@ while (iter <= opts.MaxIter) && (fchange > opts.TolFun)
     end
 end
 
-[~, ~, H] = fvalfun(w);
+[fval, ~, H] = fvalfun(w);
 SDebars = sqrt(diag(inv(H)));
 % finally, put indices of w back into correct order
 w_hat = zeros(nw,1);
