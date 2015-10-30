@@ -1,13 +1,21 @@
 function bases = makeSmoothTemporalBasis(shape, duration, nBases, binfun, nlOffset)
+% Make Smooth Temporal Basis
+% bases = makeSmoothTemporalBasis(shape, duration, nBases, binfun, nlOffset)
 %
 % Input
-%   shape: 'raised cosine' or 'boxcar'
+%   shape: 'raised cosine' or 'boxcar' or 'nonlinearly scaled cosine'
 %   duration: the time that needs to be covered
 %   nBases: number of basis vectors to fill the duration
 %   binfun:
 %
 % Output
-%   BBstm: basis vectors
+%   BBstm: basis object
+
+if nargin < 1
+    help basisFactory.makeSmoothTemporalBasis
+    bases=[];
+    return
+end
 
 nkbins = binfun(duration); % number of bins for the basis functions
 ttb = repmat((1:nkbins)', 1, nBases); % time indices for basis
