@@ -1,5 +1,5 @@
 classdef neuroGLM < handle
-    
+% spiking generalized linear models with multiple covariates    
     properties
         covar
         idxmap
@@ -199,7 +199,7 @@ classdef neuroGLM < handle
         %% add raw continuous covariate (no basis)
         function addCovariateRaw(obj, trial, covLabel, desc, varargin)
             % Add the continuous covariate without basis function (instantaneous rel)
-            %
+            % addCovariateRaw(trial, covLabel, desc, varargin)
             % varargin: offset, cond, plotOpts
             %
             
@@ -383,6 +383,7 @@ classdef neuroGLM < handle
         %% Compile Design Matrix
         function compileDesignMatrix(obj, trial, trialIndices)
             % Compile information from experiment according to given DesignSpec
+            % compileDesignMatrix(trial, trialIndices)
             if isempty(obj.dm) || ~isfield(obj.dm, 'X') || isempty(obj.dm.X)
                 
             elseif ~isempty(obj.dm) && (numel(trialIndices)==numel(obj.dm.trialIndices)) && all(sum(bsxfun(@eq, trialIndices(:),obj.dm.trialIndices),2))
@@ -455,6 +456,7 @@ classdef neuroGLM < handle
         
         %% get Design matrix column indices
         function [idx] = getDesignMatrixColIndices(obj, covarLabels)
+            % [idx] = getDesignMatrixColIndices(obj, covarLabels)
             % Input
             %   dpsec: design specification structure
             %   covarLabels: 'str' or {'str'} - label(s) of the covariates
@@ -462,6 +464,11 @@ classdef neuroGLM < handle
             %   idx: {} - column indices of the design matrix that correspond to the
             %	    specified covariates
             
+            if nargin==1
+                help getDesignMatrixColIndices
+                idx=[];
+                return
+            end
             subIdxs = obj.getGroupIndicesFromDesignSpec();
             
             if ~iscell(covarLabels)
@@ -520,9 +527,9 @@ classdef neuroGLM < handle
         end
         
         %% get covariate timing
-        function X = getCovariateTiming(obj, trial, trialIndices)
+        function [X, trialStarts, trialEnds] = getCovariateTiming(obj, trial, trialIndices)
             % Compile information from experiment according to given DesignSpec
-            % X = getCovariateTiming(trial,trialIndices)
+            % [X, trialStarts, trialEnds] = getCovariateTiming(trial, trialIndices)
             
             trialT = ceil([trial(trialIndices).duration]/obj.binSize);
             totalT = sum(trialT);
@@ -530,26 +537,77 @@ classdef neuroGLM < handle
             nCovariates = numel(obj.covar);
             
             X      = zeros(totalT, nCovariates);
+            trialStarts=nan(numel(trialIndices),1);
+            trialEnds=nan(numel(trialIndices),1);
             
             for k = 1:numel(trialIndices)
                 kTrial = trialIndices(k);
-                ndx = sum(trialT(1:k))-(trialT(k)-1):sum(trialT(1:k));
+                trialStarts(k)=sum(trialT(1:k))-(trialT(k)-1);
+                trialEnds(k)=sum(trialT(1:k));
+                ndx = trialStarts(k):trialEnds(k);
                 
                 for kCov = 1:nCovariates
                     if ~isempty(obj.covar(kCov).cond) && ~obj.covar(kCov).cond(trial(kTrial))
                         continue;
                     end
                     
-                    stim = obj.covar(kCov).stim(trial(kTrial)); % either dense or sparse
+                    if obj.covar(kCov).offset==0
+                        stim = obj.covar(kCov).stim(trial(kTrial)); % either dense or sparse
+                    else
+                        if datenum(version('-date'))>datenum('August 13, 2013')
+                            stim = circshift(obj.covar(kCov).stim(trial(kTrial)), obj.covar(kCov).offset, 1);
+                        else
+                            stim = circshift(obj.covar(kCov).stim(trial(kTrial)), obj.covar(kCov).offset);
+                        end
+                        
+                        if obj.covar(kCov).offset>0
+                            stim(1:obj.covar(kCov).offset)=0;
+                        else
+                            stim(end+obj.covar(kCov).offset+1:end)=0;
+                        end
+                    end
                     X(ndx, kCov) = full(stim);
                 end
             end
         end
         
+        %% prune covariate
+%         b(1).covar(1)
+        
         %% save 
         
         
     end
+    
+    methods(Static)
+        function sobj=saveobj(c)
+            c=functionHandleRepair(c, false);
+            sobj=struct();
+            props=properties(c);
+            for kProp=1:numel(properties)
+                if isa(c.(props{kProp}), 'handle')
+                    sobj.(props{kProp})=c.(props{kProp}).saveobj;
+                else
+                    sobj.(props{kProp})=c.(props{kProp});
+                end
+            end
+            
+        end
+        
+        function obj=loadobj(s)
+            if isstruct(s)
+                newObj=glmspike;
+                fields=fieldnames(s);
+                for kField=1:numel(fields)
+                    newObj.(fields{kField})=s.(fields{k});
+                end
+            else
+                newObj=s;
+            end
+            obj=functionHandleRepair(newObj,false);
+        end
+    end
+    
 end
 
 
