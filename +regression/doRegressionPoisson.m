@@ -1,6 +1,6 @@
-function model = doRegressionPoisson(X, Y, dspec, ndx, dt)
+function model = doRegressionPoisson(X, Y, dspec, ndx, dt, rho, colInds)
 % Helper for poisson regression fits
-% model = doRegressionPoisson(X, Y, dspec, k0, ndx)
+% model = doRegressionPoisson(X, Y, dspec, ndx, dt, rho, colInds)
 % INPUTS:
 %   X [nsamples x ndims] Stimulus
 %   Y [nsamples x 1]     Count
@@ -37,6 +37,10 @@ if ~exist('dt', 'var')
     dt = 1;
 end
 
+if ~exist('rho', 'var')
+    rho=.2;
+end
+
 if isfield(dspec.model, 'optimOpts') && isa(dspec.model.optimOpts, optim.options.Fminunc)
     optimOpts=dspec.model.optimOpts;
 else
@@ -53,16 +57,52 @@ end
 switch dspec.model.regressionMode
     case {'MLEXP', 'MLSR', 'MLE', 'ML'}
         lfun = @(w) neglogli_poiss(w, X(ndx,:), Y(ndx), nlfun, dt);
-        [wmle, ~, ~, ~, ~, H] = fminunc(lfun, k0, optimOpts);
+        [wmle, fval , ~, ~, ~, H] = fminunc(lfun, k0, optimOpts);
         model.khat      = wmle;
         model.fnlin     = nlfun;
         model.SDebars   = sqrt(diag(inv(H)));
+        model.fval=fval;
+        model.dt=dt;
+        model.df=numel(wmle);
     case {'Ridge', 'RIDGE'}
-        [wRidge,rho,SDebars] = autoRegress_PoissonRidge(X(ndx,:),Y(ndx),nlfun,1:(size(X,2)-1),.1,[.1 1 10],k0);
+        [wRidge,rho,SDebars,~,logevid] = autoRegress_PoissonRidge(X(ndx,:),Y(ndx),nlfun,1:(size(X,2)-1),.1,[.1 1 10],k0);
         model.khat      = wRidge;
         model.fnlin     = nlfun;
         model.SDebars   = SDebars;
         model.rho       = rho;
+        model.fval=logevid;
+        model.dt=1;
+        model.df=numel(wRidge);
+    case {'RidgeFixed', 'RIDGEFIXED'}
+        mstruct.neglogli = @neglogli_poiss;
+        mstruct.logprior = @logprior_ridge;
+        mstruct.liargs = {X(ndx,:),Y(ndx),nlfun,dt};
+        mstruct.priargs = {1:(size(X,2)-1),.1};
+        lfpost = @(w)(neglogpost_GLM(w,rho,mstruct));
+        [wRidge, fval, ~, ~, ~, H] = fminunc(lfpost, k0, optimOpts);
+        model.khat      = wRidge;
+        model.fnlin     = nlfun;
+        model.SDebars   = sqrt(diag(inv(H)));
+        model.rho       = rho;
+        model.fval=fval;
+        model.dt=dt;
+        model.df=numel(wRidge);
+    case {'groupL1', 'grouplasso'}
+         mstruct.neglogli = @neglogli_poiss;
+        mstruct.logprior = @logprior_groupL1;
+        assert(exist('colInds', 'var')>0, 'you must specify the indices of the covariates you want to penalize with L1')
+        mstruct.liargs = {X(ndx,:),Y(ndx),nlfun,dt};
+        mstruct.priargs = {colInds,.1};
+        lfpost = @(w)(neglogpost_GLM(w,rho,mstruct));
+        [wRidge, fval, ~, ~, ~, H] = fminunc(lfpost, k0, optimOpts);
+        model.khat      = wRidge;
+        model.fnlin     = nlfun;
+        model.SDebars   = sqrt(diag(inv(H)));
+        model.rho       = rho;
+        model.fval=fval;
+        model.dt=dt;
+        model.df=numel(wRidge);
+        
 end
 
 if isfield(dspec.model, 'bilinearMode')
@@ -85,12 +125,15 @@ if isfield(dspec.model, 'bilinearMode')
             kcohdims = [nprsperf,nbil];  % size of coherence-related filter kcoh
             
             % Do bilinear optimization (coordinate ascent)
-            [khat, SDebars] = bilinearMixRegress_Poisson(X(ndx,:), Y(ndx), kcohdims, brank, ...
-                iicoh, nlfun, dt);
+            [khat, SDebars, ~, ~,~,fval] = bilinearMixRegress_Poisson(X(ndx,:), Y(ndx), kcohdims, brank, ...
+                iicoh, nlfun, dt, [], model.khat);
             
             model.khat      = khat;
             model.fnlin     = nlfun;
             model.SDebars   = SDebars;
+            model.fval=fval;
+            model.dt=dt;
+            model.df=numel(khat)-ncohprs+nbil+nprsperf;
             
             return
         case 'OFF'
