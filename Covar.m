@@ -22,12 +22,42 @@ classdef Covar < handle
             
             c.label=label;
             c.desc=desc;
-            c.stim=stim; 
+            c.stim=stim;
+           
         end
         
         function plotBasis(c)
             c.basis.plot
             title(c.desc)
+        end
+    end
+    
+    methods(Static)
+        function sobj=saveobj(c)
+            c=functionHandleRepair(c, false);
+            sobj=struct();
+            props=properties(c);
+            for kProp=1:numel(properties)
+                if isa(c.(props{kProp}), 'handle')
+                    sobj.(props{kProp})=c.(props{kProp}).saveobj;
+                else
+                    sobj.(props{kProp})=c.(props{kProp});
+                end
+            end
+            
+        end
+        
+        function obj=loadobj(s)
+            if isstruct(s)
+                newObj=glmspike;
+                fields=fieldnames(s);
+                for kField=1:numel(fields)
+                    newObj.(fields{kField})=s.(fields{k});
+                end
+            else
+                newObj=s;
+            end
+            obj=functionHandleRepair(newObj,false);
         end
     end
     
