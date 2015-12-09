@@ -1,6 +1,7 @@
 %% Load the raw data
 rawData = load('exampleData.mat'); % run tutorial_exampleData to generate this
 nTrials = rawData.nTrials; % number of trials
+trial=rawData.trial;
 unitOfTime = 'ms';
 binSize = 1; % TODO some continuous observations might need up/down-sampling if binSize is not 1!?
 

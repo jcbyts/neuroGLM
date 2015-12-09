@@ -39,7 +39,7 @@ xy = X'*y;
 
 p = 1; % rank 1
 indsbilin = (nlin+1):nk;
-[wMLE,~,wt,wx,~] = bilinearMixRegress_Poisson(X,y,wDims,p,indsbilin);
+[wMLE,~,wt,wx,~] = regression.bilinearMixRegress_Poisson(X,y,wDims,p,indsbilin);
 subplot(2,2,3)
 imagesc(wt(:)*wx(:)')
 title('bilinear MLE')

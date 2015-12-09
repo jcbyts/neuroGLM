@@ -39,7 +39,8 @@ classdef neuroGLM < handle
             assert(ischar(unitOfTime), 'Put a string for unit');
             
             obj.binSize  = binSize;
-            obj.binfun   = @(t) (t == 0) + ceil(t/obj.binSize);
+            obj.binfun   = str2func(['@(t) (t==0) + ceil(t/' num2str(obj.binSize) ')']);
+%             obj.binfun   = @(t) (t == 0) + ceil(t/obj.binSize);
             
             
             if nargin > 3
@@ -136,9 +137,13 @@ classdef neuroGLM < handle
             newIdx = numel(fieldnames(obj.idxmap)) + 1;
             
             if newIdx==1
-                obj.covar=Covar(covLabel, desc, stimHandle);
+                obj.covar=struct('label', covLabel, 'desc', desc, 'stim', stimHandle, ...
+                    'offset', 0, 'cond', [], 'basis', [], 'edim', [], 'sdim', []);
+%                 obj.covar=Covar(covLabel, desc, stimHandle);
             else
-                obj.covar(newIdx)=Covar(covLabel, desc, stimHandle);
+%                 obj.covar(newIdx)=Covar(covLabel, desc, stimHandle);
+                obj.covar(newIdx)=struct('label', covLabel, 'desc', desc, 'stim', stimHandle, ...
+                    'offset', 0, 'cond', [], 'basis', [], 'edim', [], 'sdim', []);
             end
             
             obj.idxmap.(covLabel) = newIdx;
@@ -190,8 +195,13 @@ classdef neuroGLM < handle
             if nargin < 5; desc = covLabel; end
             
             assert(ischar(desc), 'Description must be a string');
-            
-            stimHandle = @(trial) basisFactory.boxcarStim(obj.binfun(trial.(startLabel)), obj.binfun(trial.(endLabel)), obj.binfun(trial.duration));
+            bf=obj.binfun;
+            fstr=func2str(bf);
+            fstr=@(label) strrep(fstr(5:end), 't', ['trial.' label]);
+            stimHandle = str2func(['@(trial) basisFactory.boxcarStim(' fstr(startLabel) ', ' fstr(endLabel) ', ' fstr('duration') ')']);
+%             bf=obj.binfun; %#ok<NASGU>
+%             stimHandle = str2func(['@(trial) basisFactory.boxcarStim(bf(trial.(' startLabel ')), bf(trial.(' endLabel ')), bf(trial.duration))']);
+%             stimHandle = @(trial) basisFactory.boxcarStim(bf(trial.(startLabel)), bf(trial.(endLabel)), bf(trial.duration));
             
             obj.addCovariate(trial, covLabel, desc, stimHandle, varargin{:});
         end
@@ -212,7 +222,7 @@ classdef neuroGLM < handle
         end
         
         %% add Spike train covariate
-        function addCovariateSpiketrain(obj, trial, covLabel, stimLabel, desc, bs, varargin)
+        function addCovariateSpiketrain(obj, trial, covLabel, stimLabel, desc, basisObj, varargin)
             % add spike train as covariate
             %
             % varargin: offset, cond, plotOpts
@@ -227,7 +237,7 @@ classdef neuroGLM < handle
             if nargin < 5; desc = covLabel; end
             
             if nargin < 6
-                bs = basisFactory.basisFactory('history', obj.binfun);
+                basisObj = basisFactory.basisFactory('history', obj.binfun);
             end
             
             assert(ischar(desc), 'Description must be a string');
@@ -241,12 +251,16 @@ classdef neuroGLM < handle
                     options=varargin(2:end);
                 end
             else
-                stimHandle = @(trial) basisFactory.deltaStim(obj.binfun(trial.(stimLabel)), obj.binfun(trial.duration));
-%                 stimHandle = @(trial) basisFactory.deltaStim(obj.binfun(trial.(stimLabel)+obj.binSize), obj.binfun(trial.duration));
+                bf=obj.binfun;
+                fstr=func2str(bf);
+                fstr=@(label) strrep(fstr(5:end), 't', ['trial.' label]);
+                stimHandle = str2func(['@(trial) basisFactory.deltaStim(' fstr(stimLabel) ', ' fstr('duration') ')']);
+%                 stimHandle = @(trial) basisFactory.deltaStim(bf(trial.(stimLabel)), bf(trial.duration));
+%                 stimHandle = @(trial) basisFactory.deltaStim(bf(trial.(stimLabel)+obj.binSize), obj.binfun(trial.duration));
                 options = varargin;
             end
             
-            obj.addCovariate(trial, covLabel, desc, stimHandle, bs, offset, options{:});
+            obj.addCovariate(trial, covLabel, desc, stimHandle, basisObj, offset, options{:});
         end
         
         %% add Timing Covariate
@@ -267,8 +281,13 @@ classdef neuroGLM < handle
             if isempty(desc)
                 desc=stimLabel;
             end
-                        
-            stimHandle = @(trial) basisFactory.deltaStim(obj.binfun(trial.(stimLabel)), obj.binfun(trial.duration(1)));
+            
+            bf=obj.binfun;
+            fstr=func2str(bf);
+            fstr=@(label) strrep(fstr(5:end), 't', ['trial.' label]);
+            stimHandle = str2func(['@(trial) basisFactory.deltaStim(' fstr(stimLabel) ', ' fstr('duration') ')']);
+%             bf=obj.binfun;
+%             stimHandle = @(trial) basisFactory.deltaStim(bf(trial.(stimLabel)), bf(trial.duration(1)));
             
             obj.addCovariate(trial, covLabel, desc, stimHandle, varargin{:});
             
@@ -574,37 +593,35 @@ classdef neuroGLM < handle
         %% prune covariate
 %         b(1).covar(1)
         
-        %% save 
+        %% saveobj
+        function S=saveobj(obj)
+            d=obj;
+%             d=funh2struct(obj, false);
+            S.covar=d.covar;
+            S.idxmap=d.idxmap;
+            S.dm=d.dm;
+            S.edim=d.edim;
+            S.binfun=d.binfun;
+            S.binSize=d.binSize;
+            S.param=d.param;
+        end
         
         
     end
     
     methods(Static)
-        function sobj=saveobj(c)
-            c=functionHandleRepair(c, false);
-            sobj=struct();
-            props=properties(c);
-            for kProp=1:numel(properties)
-                if isa(c.(props{kProp}), 'handle')
-                    sobj.(props{kProp})=c.(props{kProp}).saveobj;
-                else
-                    sobj.(props{kProp})=c.(props{kProp});
-                end
-            end
-            
-        end
         
         function obj=loadobj(s)
             if isstruct(s)
-                newObj=glmspike;
+                newObj=neuroGLM;
                 fields=fieldnames(s);
                 for kField=1:numel(fields)
-                    newObj.(fields{kField})=s.(fields{k});
+                    newObj.(fields{kField})=s.(fields{kField});
                 end
             else
                 newObj=s;
             end
-            obj=functionHandleRepair(newObj,false);
+            obj=struct2funh(newObj,false);
         end
     end
     

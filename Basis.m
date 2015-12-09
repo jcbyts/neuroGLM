@@ -35,12 +35,12 @@ classdef Basis < handle
             b.B = bsxfun(@rdivide, b.B, sum(b.B));
             b.normalized=true;
         end
-
+        
         function orthogonalize(b)
             b.B = orth(b.B);
             b.orthogonalized=true;
         end
-
+        
         function X = convolve(b, stim, offset)
             % Convolve basis functions to the covariate matrix
             %
@@ -75,5 +75,41 @@ classdef Basis < handle
             end
         end
         
+        function S=saveobj(b)
+            c=b;
+%             c=funh2struct(b, false);
+            S=struct();
+            
+            S.type=c.type;
+            S.shape=c.shape;
+            S.duration=c.duration;
+            S.nBases=c.nBases;
+            S.binfun=c.binfun;
+            S.B=c.B;
+            S.edim=c.edim;
+            S.tr=c.tr;
+            S.centers=c.centers;
+            S.normalized=c.normalized;
+            S.orthogonalized=c.orthogonalized;
+        end
+        
+        
+    end
+    
+    methods(Static)
+        
+        function obj=loadobj(s)
+            if isstruct(s)
+                newObj=Basis;
+                fields=fieldnames(s);
+                for kField=1:numel(fields)
+                    newObj.(fields{kField})=s.(fields{kField});
+                end
+            else
+                newObj=s;
+            end
+%             obj=struct2funh(newObj,false);
+            obj=newObj;
+        end
     end
 end
