@@ -306,6 +306,12 @@ classdef neuroGLM < handle
             %   wout.(label).data = combined weights
             %   wout.(label).tr = time axis
             
+            if nargin==1
+                help neuroGLM/combineWeights
+                wout=[];
+                return
+            end
+            
             obj.binSize;
             wout = struct();
             
@@ -455,8 +461,17 @@ classdef neuroGLM < handle
         %% get binned spike train
         function y = getBinnedSpikeTrain(obj, trial, spLabel, trialIdx)
             % y: a sparse column vector representing the concatenated spike trains
-%             getBinnedSpikeTrain(obj, trial, spLabel, trialIdx)
+            % getBinnedSpikeTrain(obj, trial, spLabel, trialIdx)
+        if nargin==1
+            help neuroGLM/getBinnedSpikeTrain
+            y=[];
+            return
+        end
             
+        if nargin < 4
+            trialIdx=1:numel(trial);
+        end
+        
             sts = cell(numel(trialIdx), 1);
             endTrialIndices = [0 cumsum(obj.binfun([trial(trialIdx).duration]))];
             nT = endTrialIndices(end); % how many bins total?
@@ -549,6 +564,13 @@ classdef neuroGLM < handle
         function [X, trialStarts, trialEnds] = getCovariateTiming(obj, trial, trialIndices)
             % Compile information from experiment according to given DesignSpec
             % [X, trialStarts, trialEnds] = getCovariateTiming(trial, trialIndices)
+            if nargin==1
+                help neuroGLM/getCovariateTiming
+                X=[];
+                trialStarts=[];
+                trialEnds=[];
+                return
+            end
             
             trialT = ceil([trial(trialIndices).duration]/obj.binSize);
             totalT = sum(trialT);
@@ -582,7 +604,8 @@ classdef neuroGLM < handle
                         if obj.covar(kCov).offset>0
                             stim(1:obj.covar(kCov).offset)=0;
                         else
-                            stim(end+obj.covar(kCov).offset+1:end)=0;
+%                             stim(end+obj.covar(kCov).offset+1:end)=0;
+                            stim(max(numel(stim)+obj.covar(kCov).offset+1, 1):end)=0; %bugS
                         end
                     end
                     X(ndx, kCov) = full(stim);
