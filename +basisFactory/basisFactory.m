@@ -1,5 +1,8 @@
 function bs = basisFactory(basisName, binfun, duration)
-
+% make basis functions
+% bs = basisFactory(basisName, binfun, duration)
+% Possibe Names
+% 
 % nonlinearly scaled raised-cosine basis functions extra ones for refractory 
 % bs = makeSpikeBasis(nBasis, binSize, rnge, stretch, nDelta)
 % Possible inputs:
