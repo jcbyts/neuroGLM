@@ -1,9 +1,22 @@
-function stim = boxcarStim(startBinnedTime, endBinnedTime, nT)
+function stim = boxcarStim(startBinnedTime, endBinnedTime, nT, val)
 % Returns a boxcar duration stimulus design
-if endBinnedTime>nT
-    endBinnedTime=nT;
-end
-idx = startBinnedTime:endBinnedTime;
-o = ones(numel(idx), 1);
+% stim = boxcarStim(startBinnedTime, endBinnedTime, nT, val)
 
-stim = sparse(idx, o, o, nT, 1);
+if nargin < 4
+    val=1;
+end
+
+endBinnedTime(endBinnedTime>nT)=nT;
+
+idx=[];
+o=[];
+v=[];
+for k=1:numel(startBinnedTime)
+    id = startBinnedTime(k):endBinnedTime(k);
+    idx=[idx; id(:)];
+    o = [o; ones(numel(id), 1)];
+    v = [v; val(k)*ones(numel(id), 1)];
+end
+
+[idx, ii]=unique(idx);
+stim = sparse(idx, o(ii), v(ii), nT, 1);
