@@ -3,7 +3,7 @@
 
 ntb  = 15;
 nsb  = 10;
-nlin = 20;
+nlin = 1;
 
 wspace = exp(- ((1:nsb)-nsb/2).^2/15);
 wtime  = cos( .5*(1:ntb));
@@ -21,7 +21,6 @@ wtrue = [wlin(:); wst(:)]/10;
 nk       = numel(wtrue); 
 nsamples = 500;
 X = randn(nsamples, nk);
-
 y = poissrnd(exp(X*wtrue));
 
 %%
@@ -33,16 +32,26 @@ imagesc(reshape(b(1:prod(wDims)), wDims))
 title('glmfit')
 
 %% linear bilinear regression
-
+mstruct.neglogli=@regression.neglogli_poiss;
+mstruct.logprior=@logprior_ridge;
+mstruct.nlfun=@expfun;
+mstruct.dtbin=binSize;
+mstruct.liargs={mstruct.nlfun,mstruct.dtbin};
+mstruct.hyperprs=.001;
+    
 xx = X'*X;
 xy = X'*y;
 
 p = 1; % rank 1
 indsbilin = (nlin+1):nk;
-[wMLE,~,wt,wx,~] = regression.bilinearMixRegress_Poisson(X,y,wDims,p,indsbilin);
+% [wMLE,wt,wx,~] = bilinearMixRegress_coordAscent(xx,xy,wDims,p,indsbilin, .10);
+[wMLE,~,wt,wx,~] = regression.bilinearMixRegress_Poisson(X,y,wDims,p,indsbilin, mstruct);
 subplot(2,2,3)
 imagesc(wt(:)*wx(:)')
 title('bilinear MLE')
+
+subplot(2,2,4)
+plot(1:nk, wtrue/norm(wtrue), 'k',1:nk, wMLE/norm(wMLE))
 
 %% test with autoregress poisson
 mstruct.nlfun=@expfun;

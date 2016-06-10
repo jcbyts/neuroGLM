@@ -117,24 +117,31 @@ optimOpts = optimoptions('fminunc', 'algorithm', 'trust-region', 'PrecondBandWid
 while (iter <= opts.MaxIter) && (fchange > opts.TolFun)
     
     % Update temporal components
+    wx=bsxfun(@rdivide, wx, sqrt(sum(wx.^2)));
     Mx = blkdiag(kron(wx',It),Ilin);
     Xproj = X*Mx;
-    C=Mx'*xx*Mx;
-    w0 = (C+eye(size(C)))\(Mx'*xy);
+%     C=Mx'*xx*Mx;
+%     w0 = (C+eye(size(C)))\(Mx'*xy);
     lfun = @(w) postfun(w, Xproj, Y);
 %     lfun = @(w) neglogli_poiss(w, Xproj, Y, g, dtbin);
+%     wt = fminunc(lfun, w0, optimOpts);
+    w0=[wt(:); wlin(:)];
     wt = fminunc(lfun, w0, optimOpts);
-    
+    wlin=wt(nwt+1:end);
     wt = reshape(wt(1:nwt), nt,p);
     
+%     wt=bsxfun(@rdivide, wt, sqrt(sum(wt.^2)));
+    
     % Update spatial components
+    
     Mt = blkdiag(kron(Ix, wt),Ilin);
-    C=Mt'*xx*Mt;
-    wx0 = (C+eye(size(C)))\(Mt'*xy);
+%     C=Mt'*xx*Mt;
+%     wx0 = (C+eye(size(C)))\(Mt'*xy);
     Xproj = X*Mt;
     lfun = @(w) postfun(w, Xproj, Y);
 %     lfun = @(w) neglogli_poiss(w, Xproj, Y, g, dtbin);
-    wx = fminunc(lfun, wx0, optimOpts);
+%     wx = fminunc(lfun, wx0, optimOpts);
+    wx = fminunc(lfun, [wx(:); wlin(:)], optimOpts);
     
     wlin = wx(nwx+1:end);
     wx = reshape(wx(1:nwx),p,nx);
