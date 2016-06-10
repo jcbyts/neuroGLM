@@ -1,5 +1,15 @@
 classdef neuroGLM < handle
-% spiking generalized linear models with multiple covariates    
+% spiking generalized linear models with multiple covariates 
+%
+% Initialize neuroGLM with the following options
+%
+%   unitOfTime: 'string' - 's' or 'ms' indicating a global unit of time
+%   binSize: [1] - duration of each time bin in units of unitOfTime
+%   param: (any) optional - any potentially useful extra information
+%       associated with the entire experiment record (experimental
+%       parameters)
+% 
+% e.g., n=neuroGLM('binSize', 1);
     properties
         covar
         idxmap
@@ -185,20 +195,31 @@ classdef neuroGLM < handle
         end
         
         %% add Boxcar covariate
-        function addCovariateBoxcar(obj, trial, covLabel, startLabel, endLabel, desc, varargin)
+        function addCovariateBoxcar(obj, trial, covLabel, startLabel, endLabel, valLabel, desc, varargin)
             % add boxcar covariate to model
-            % addCovariateBoxcar(obj, trial, covLabel, startLabel, endLabel, desc, varargin)
+            % addCovariateBoxcar(obj, trial, covLabel, startLabel, endLabel, valLabel, desc, varargin)
             %
             % varargin: offset, cond, plotOpts
             %
             % see also: addCovariateRaw, addCovariateSpikeTrain, addCovariate, addCovariateTiming
+            if isa(desc, 'Basis')
+                varargin={desc, varargin{:}};
+                desc=valLabel;
+                valLabel=[];
+            end
+            
             if nargin < 5; desc = covLabel; end
             
             assert(ischar(desc), 'Description must be a string');
-            bf=obj.binfun;
-            fstr=func2str(bf);
-            fstr=@(label) strrep(fstr(5:end), 't', ['trial.' label]);
-            stimHandle = str2func(['@(trial) basisFactory.boxcarStim(' fstr(startLabel) ', ' fstr(endLabel) ', ' fstr('duration') ')']);
+%             bf=obj.binfun;
+%             fstr=func2str(bf);
+%             fstr=@(label) strrep(fstr(5:end), 't', ['trial.' label]);
+            if ~isempty(valLabel)
+                stimHandle = @(trial) basisFactory.boxcarStim(obj.binfun(trial.(startLabel)), obj.binfun(trial.(endLabel)), obj.binfun(trial.duration), trial.(valLabel));
+            else
+                stimHandle = @(trial) basisFactory.boxcarStim(obj.binfun(trial.(startLabel)), obj.binfun(trial.(endLabel)), obj.binfun(trial.duration));
+            end
+%             stimHandle = str2func(['@(trial) basisFactory.boxcarStim(' fstr(startLabel) ', ' fstr(endLabel) ', ' fstr('duration') ','  ')']);
 %             bf=obj.binfun; %#ok<NASGU>
 %             stimHandle = str2func(['@(trial) basisFactory.boxcarStim(bf(trial.(' startLabel ')), bf(trial.(' endLabel ')), bf(trial.duration))']);
 %             stimHandle = @(trial) basisFactory.boxcarStim(bf(trial.(startLabel)), bf(trial.(endLabel)), bf(trial.duration));
@@ -216,8 +237,9 @@ classdef neuroGLM < handle
             if nargin < 3; desc = covLabel; end
             
             % assert(ischar(desc), 'Description must be a string');
-            
-            obj.addCovariate(trial, covLabel, desc, basisFactory.rawStim(covLabel), varargin{:});
+            stimHandle=str2func(sprintf('@(trial) trial.%s(1:%d:end)', covLabel, obj.binSize));
+%             stimHandle=basisFactory.rawStim(covLabel);
+            obj.addCovariate(trial, covLabel, desc, stimHandle, varargin{:});
             
         end
         
@@ -317,8 +339,8 @@ classdef neuroGLM < handle
             
             if isfield(obj.dm, 'biasCol') % undo z-score operation
                 if isfield(obj.dm, 'zscore') && numel(obj.dm.zscore.mu) == numel(w) % remove bias from zscore
-                    zmu  = obj.dm.zscore.sigma(obj.dm.biasCol);
-                    zsig = obj.dm.zscore.mu(obj.dm.biasCol);
+                    zmu  = obj.dm.zscore.mu(obj.dm.biasCol);
+                    zsig = obj.dm.zscore.sigma(obj.dm.biasCol);
                     obj.dm.zscore.sigma(obj.dm.biasCol) = [];
                     obj.dm.zscore.mu(obj.dm.biasCol) = [];
                 else
@@ -330,7 +352,7 @@ classdef neuroGLM < handle
             end
             
             if isfield(obj.dm, 'zscore') % undo z-score operation
-                w = (w .* obj.dm.zscore.sigma(:)) + obj.dm.zscore.mu(:);
+                w = (w ./ obj.dm.zscore.sigma(:)); % + obj.dm.zscore.mu(:);
             end
             
             if isfield(obj.dm, 'constCols') % put back the constant columns

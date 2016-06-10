@@ -24,7 +24,7 @@ model=[];
 
 k0=(X'*X + eye(size(X,2)))\(X'*Y);
 
-assert(isfield(dspec, 'model')||isprop(dspec, 'model'), 'model is a required field of dspec')
+assert(isfield(dspec, 'model')|isprop(dspec, 'model'), 'model is a required field of dspec')
 if ~isfield(dspec.model, 'regressionMode')
     dspec.model.regressionMode='ML';
 end
