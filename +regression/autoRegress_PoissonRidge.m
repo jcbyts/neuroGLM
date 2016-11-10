@@ -46,7 +46,7 @@ mstruct.liargs = {xx,yy,fnlin,dtbin};
 mstruct.priargs = {iirdge,rhoNull};
 
 % --- Do grid search over ridge parameter -----
-[hprsMax,wmapMax] = gridsearch_GLMevidence(w0,mstruct,rhovals);
+[hprsMax,wmapMax] = regression.gridsearch_GLMevidence(w0,mstruct,rhovals);
 fprintf('best grid point: rho (precision)=%.1f\n', hprsMax);
 
 % --- Do gradient ascent on evidence ----
