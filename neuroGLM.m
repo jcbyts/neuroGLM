@@ -559,18 +559,18 @@ classdef neuroGLM < handle
         function y = getResponseVariable(obj, trial, label, trialIdx)
             % y: a column vector or matrix representing the concatenated continuous variable
             
-            if ~isempty(trial)
+            if isempty(trial)
                 error('First argument must be an experiment structure');
             end
             
-            if ~isfield(obj.expt.type, label)
-                error('Label [%s] is not registered in the experiment structure', label);
-            end
-            
-            % Check that the label corresponds to a continuous variable
-            if ~strcmp(obj.expt.type.(label), 'continuous')
-                error('Type of label [%s] is not continuous', label);
-            end
+%             if ~isfield(obj.expt.type, label)
+%                 error('Label [%s] is not registered in the experiment structure', label);
+%             end
+%             
+%             % Check that the label corresponds to a continuous variable
+%             if ~strcmp(obj.expt.type.(label), 'continuous')
+%                 error('Type of label [%s] is not continuous', label);
+%             end
             
             % put everything in a cell
             ycell = cell(numel(trialIdx), 1);
@@ -581,10 +581,12 @@ classdef neuroGLM < handle
                 end
             else
                 for kTrial = trialIdx(:)'
-                    n=obj.binfun(trial.duration);
+                    n=obj.binfun(trial(kTrial).duration);
                     ycell{kTrial} = zeros(n,1); 
                     for t=1:n 
-                        ycell{kTrial}(t) = mean(trial(kTrial).(label)( (t-1)*obj.binSize+(1:obj.binSize)));
+                        idx = (t-1)*obj.binSize+(1:obj.binSize);
+                        idx(idx > trial(kTrial).duration) = [];
+                        ycell{kTrial}(t) = mean(trial(kTrial).(label)( idx ));
                     end
                 end
             end
