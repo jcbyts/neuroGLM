@@ -87,29 +87,11 @@ switch dspec.model.regressionMode
         model.fval=fval;
         model.dt=dt;
         model.df=numel(wRidge);
-    case {'group', 'grouplasso'}
-        mstruct.neglogli = @neglogli_poiss;
-        mstruct.logprior = @logprior_groupL1;
-        assert(exist('colInds', 'var')>0, 'you must specify the indices of the covariates you want to penalize with L1')
-        mstruct.liargs = {X(ndx,:),Y(ndx),nlfun,dt};
-        mstruct.priargs = {colInds,.1};
-        lfpost = @(w)(neglogpost_GLM(w,rho,mstruct));
-        Opts=optimset('display', 'iter');
-        Opts.maxIter=20e3;
-%         k0(cell2mat(colInds))=0;
-        [wRidge, fval, ~, ~, ~, ~] = fminunc(lfpost, k0, Opts);
-        model.khat      = wRidge;
-        model.fnlin     = nlfun;
-%         model.SDebars   = sqrt(diag(inv(H)));
-        model.rho       = rho;
-        model.fval=fval;
-        model.dt=dt;
-        model.df=numel(wRidge);
         
     case {'RidgeGroup'}
         mstruct.neglogli = @neglogli_poiss;
         mstruct.logprior = @logprior_ridge;
-        assert(exist('colInds', 'var')>0, 'you must specify the indices of the covariates you want to penalize with L1')
+        assert(exist('colInds', 'var')>0, 'you must specify the indices of the covariates you want to penalize with L2')
         mstruct.liargs = {X(ndx,:),Y(ndx),nlfun,dt};
         mstruct.priargs = {colInds,.1};
         lfpost = @(w)(neglogpost_GLM(w,rho,mstruct));
@@ -125,7 +107,7 @@ switch dspec.model.regressionMode
     case {'RidgeGroupCV'}
         mstruct.neglogli = @regression.neglogli_poiss;
         mstruct.logprior = @logprior_ridge;
-        assert(exist('colInds', 'var')>0, 'you must specify the indices of the covariates you want to penalize with L1')
+        assert(exist('colInds', 'var')>0, 'you must specify the indices of the covariates you want to penalize with L2')
         mstruct.liargs = {X(ndx,:),Y(ndx),nlfun,dt};
         mstruct.priargs = {colInds,.1};
         nRho=numel(rho);
