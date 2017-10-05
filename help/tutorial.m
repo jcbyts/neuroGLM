@@ -66,8 +66,8 @@ toc
 % it requires `fminunc` from MATLAB's optimization toolbox
 
 
-fnlin = @expfun; % inverse link function (a.k.a. nonlinearity)
-lfunc = @(w)neglogli_tspline_poiss(w, n.dm.X, y, fnlin, 1); % cost/loss function
+fnlin = @nlfuns.expfun; % inverse link function (a.k.a. nonlinearity)
+lfunc = @(w)regression.neglogli_poiss(w, n.dm.X, y, fnlin, 1); % cost/loss function
 
 opts = optimoptions(@fminunc, 'Algorithm', 'trust-region', ...
     'GradObj', 'on', 'Hessian','on');
