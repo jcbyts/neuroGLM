@@ -46,6 +46,7 @@ if isfield(dspec.model, 'optimOpts') && isa(dspec.model.optimOpts, optim.options
 else
     optimOpts = optimoptions(@fminunc, 'Display', 'iter', 'Algorithm','trust-region',...
         'GradObj','on','Hessian','on');
+%     optimOpts = optimset('LargeScale', 'on', 'GradObj', 'on', 'Hessian', 'on', 'Display', 'iter');
 end
 
 if isfield(dspec.model, 'nlfun') && isa(dspec.model.nlfun, 'function_handle')

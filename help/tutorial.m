@@ -1,31 +1,34 @@
 %% Load the raw data
-rawData = load('exampleData.mat'); % run tutorial_exampleData to generate this
-nTrials = rawData.nTrials; % number of trials
+rawData = load('exampleSession.mat'); % run tutorial_exampleData to generate this
+nTrials = numel(rawData.trial); % number of trials
 trial=rawData.trial;
 unitOfTime = 'ms';
 binSize = 1; % TODO some continuous observations might need up/down-sampling if binSize is not 1!?
+
 
 %% Specify the fields to load
 n=neuroGLM('ms', binSize, rawData.param);
 
 %% Convert the raw data into the experiment structure
 
-n.addCovariateSpiketrain(trial, 'hist', 'sptrain', 'History Filter')
-n.addCovariateSpiketrain(trial, 'coupling', 'sptrain2', 'Coupling from neuron 2')
+% n.addCovariateSpiketrain(trial, 'hist', 'sptrain', 'History Filter')
+% n.addCovariateSpiketrain(trial, 'coupling', 'sptrain2', 'Coupling from neuron 2')
 
 %% Build 'designSpec' which specifies how to generate the design matrix
 % Each covariate to include in the model and analysis is specified.
 
-
-bs = basisFactory.makeSmoothTemporalBasis('boxcar', 100, 10, n.binfun);
+figure(1); clf
+bs = basisFactory.makeSmoothTemporalBasis('raised cosine', 1e3, 20, n.binfun);
 bs.normalize
+bs.plot
 
-%% Instantaneous Raw Signal without basis
-n.addCovariateRaw(trial, 'LFP', 'LFP', bs);
+%% Instantaneous Raw Signal
+n.addCovariateRaw(trial, 'direction', 'direction', bs);
+n.addCovariateRaw(trial, 'contrast', 'contrast', bs);
 
-%% Acausal Timing Event
-bs = basisFactory.makeSmoothTemporalBasis('boxcar', 300, 8, n.binfun);
-offset = -200;
+% Acausal Timing Event
+bs = basisFactory.makeSmoothTemporalBasis('raised cosine', 1e3, 20, n.binfun);
+offset = -500;
 n.addCovariateTiming(trial, 'saccade', 'saccade', [], bs, offset);
 
 % %% Coherence
@@ -48,12 +51,11 @@ n.compileDesignMatrix(trial, trialIndices);
 
 
 %% Get the spike trains back to regress against
-y = n.getBinnedSpikeTrain(trial, 'sptrain', n.dm.trialIndices);
+neuronName = 'LIPneuron10ch13';
+y = n.getBinnedSpikeTrain(trial, neuronName, n.dm.trialIndices);
 
 %% Do some processing on the design matrix
 n.removeConstantCols;
-colIndices = n.getDesignMatrixColIndices('LFP');
-n.zscoreDesignMatrix([colIndices{:}]);
 
 n.addBiasColumn; % DO NOT ADD THE BIAS TERM IF USING GLMFIT
 
@@ -79,18 +81,23 @@ wvar = diag(inv(hessian));
 % [w, dev, stats] = glmfit(dm.X, y, 'poisson', 'link', 'log');
 % wvar = stats.se.^2;
 
+
+
 %% Visualize
 ws = n.combineWeights(wml);
 wvar = n.combineWeights(wvar);
 
+showConfIntervals = false;
 fig = figure(2913); clf;
 nCovar = numel(n.covar);
 for kCov = 1:nCovar
     label = n.covar(kCov).label;
     subplot(nCovar, 1, kCov);
-    plot(ws.(label).tr, ws.(label).data, ...
-        ws.(label).tr, ws.(label).data+sqrt(wvar.(label).data), '--', ...
-        ws.(label).tr, ws.(label).data-sqrt(wvar.(label).data), '--')
+    plot(ws.(label).tr, ws.(label).data)
+    if showConfIntervals
+    plot(ws.(label).tr, ws.(label).data+sqrt(wvar.(label).data), '--');
+    plot(ws.(label).tr, ws.(label).data-sqrt(wvar.(label).data), '--');
+    end
     title(label);
 end
 

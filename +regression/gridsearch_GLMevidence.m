@@ -51,9 +51,9 @@ logevids = zeros(ngrid,1);
 fprintf('\n%d gridpts:',ngrid);
 for jj = 1:ngrid
     hh_itr = hh(jj,:)';  % hyperparameters for this iteration
-    lfpost = @(w)(neglogpost_GLM(w,hh_itr,mstruct));
+    lfpost = @(w)(regression.neglogpost_GLM(w,hh_itr,mstruct));
     wmap_itr = fminunc(lfpost,w0,opts);
-    logevids(jj) = logevid_GLM(wmap_itr,hh_itr,mstruct);
+    logevids(jj) = regression.logevid_GLM(wmap_itr,hh_itr,mstruct);
     wmaps(:,jj) = wmap_itr;
 
     if mod(jj,5)==0
